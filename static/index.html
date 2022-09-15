@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+  <link href="styles.css" rel="stylesheet">
+  <link href="https://unpkg.com/vue-simple-notify/dist/vue-simple-notify.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+  <script src="https://unpkg.com/vue-simple-notify/dist/vue-simple-notify.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+<main id="v-app">
+  <div class="container">
+    <button type="button" class="btn btn-dark" @click.prevent="logout()">Sign out</button>
+
+    <!-- Page header start -->
+    <div class="page-title">
+      <div class="row gutters">
+        <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
+          <h5 class="title">Chat App</h5>
+        </div>
+        <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12"></div>
+      </div>
+    </div>
+    <!-- Page header end -->
+
+    <!-- Content wrapper start -->
+    <div class="content-wrapper">
+
+      <!-- Row start -->
+      <div class="row gutters">
+
+        <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12">
+
+          <div class="card m-0">
+
+            <!-- Row start -->
+            <div class="row no-gutters">
+              <div class="col-xl-4 col-lg-4 col-md-4 col-sm-3 col-3">
+                <div class="users-container">
+
+                  <ul class="users">
+                    <h5 class="title m-3">Friends</h5>
+                    <li v-if="friends" v-for="fr of friends" class="person"
+                        @click.prevent="activate(fr.id); getChat(fr.id);"
+                        :class="{ 'active-user' : active === fr.id }"
+                        data-chat="person1">
+                      <div class="user">
+                        <img src="https://www.bootdey.com/img/Content/avatar/avatar3.png" alt="Retail Admin">
+                        <span class="status busy"></span>
+                      </div>
+                      <p class="name-time">
+                        <span class="name">{{ fr.username }}</span>
+                      </p>
+                    </li>
+                  </ul>
+                  <ul class="users">
+                    <h5 class="title m-3">All Users</h5>
+                    <li v-if="notFriends" v-for="fr of notFriends" class="person"
+                        @click.prevent="addFriend(fr.id);"
+                        :class="{ 'active-user' : active === fr.id }"
+                        data-chat="person1">
+                      <div class="user">
+                        <img src="https://www.bootdey.com/img/Content/avatar/avatar3.png" alt="Retail Admin">
+                        <span class="status busy"></span>
+                      </div>
+                      <p class="name-time">
+                        <span class="name">{{ fr.username }}</span>
+                      </p>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div v-if="friendData" class="col-xl-8 col-lg-8 col-md-8 col-sm-9 col-9">
+                <div class="selected-user">
+                  <span class="name">{{ friendData.username }}</span>
+                </div>
+                <div class="chat-container">
+                  <ul class="chat-box">
+                    <li v-for="msg of messages"
+                        :class="[ friendData.id === msg.toUser.id ? 'chat-right' :'chat-left' ]">
+                      <div class="chat-avatar">
+                        <img src="https://www.bootdey.com/img/Content/avatar/avatar3.png" alt="Retail Admin">
+                        <div class="chat-name">
+                          {{ msg.fromUser.username }}
+                        </div>
+                      </div>
+                      <div class="chat-text">{{ msg.text }}</div>
+                    </li>
+                  </ul>
+                  <form class="form-group mb-0 d-flex">
+                    <input v-model="text" @keypress.enter.prevent="sendChatMessage(friendData.id)" type="text"
+                           placeholder="Type your message here..." class="form-control" />
+                  </form>
+                </div>
+              </div>
+            </div>
+            <!-- Row end -->
+          </div>
+
+        </div>
+
+      </div>
+      <!-- Row end -->
+    </div>
+    <!-- Content wrapper end -->
+
+  </div>
+
+</main>
+<script>
+  const app = new Vue({
+    el: "#v-app",
+    data: {
+      username: "",
+      title: "Websocket Message",
+      text: "",
+      messages: [],
+      socket: { chat: null, alerts: null },
+      alerts: [],
+      friends: [],
+      notFriends: [],
+      friendId: null,
+      active: null,
+      friendData: ""
+    },
+    methods: {
+      sendChatMessage(userId) {
+        if (this.text === "") {
+          return;
+        }
+        this.socket.chat.emit("chatToServer", {
+          fromUser: localStorage.getItem("id"),
+          toUser: userId,
+          text: this.text
+        });
+        this.text = "";
+
+      },
+
+      receiveChatMessage(msg) {
+        this.messages.push(msg);
+      },
+
+      async addFriend(userId) {
+
+        const settings = {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json"
+          }
+        };
+        try {
+          await fetch(`/users/friend?${new URLSearchParams({ user_id: userId })}`, settings);
+        } catch (e) {
+          return e;
+        }
+        await this.getAllFriends();
+        await this.getAllNotFriends();
+      },
+
+      async getAllFriends() {
+        const settings = {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json"
+          }
+        };
+        try {
+          const response = await fetch(`/users/friends`, settings);
+          if (response.status <= 201) {
+            const data      = await response.json();
+            this.friends    = [];
+            this.friends    = data;
+            this.friendData = data[0];
+          }
+        } catch (e) {
+          return e;
+        }
+      },
+
+      async getAllNotFriends() {
+        const settings = {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json"
+          }
+        };
+        try {
+          const response = await fetch(`/users/not-friends`, settings);
+          if (response.status <= 201) {
+            const data      = await response.json();
+            this.notFriends = [];
+            this.notFriends = data;
+          }
+        } catch (e) {
+          return e;
+        }
+      },
+
+      async checkHealth() {
+        const settings = {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json"
+          }
+        };
+        try {
+          const response = await fetch(`/auth/checkhealth`, settings);
+          if (response.status <= 201) {
+            const data = await response.json();
+            const user = data.user;
+            localStorage.setItem("id", user.id);
+            localStorage.setItem("username", user.username);
+          }
+          if (response.status === 401) {
+            alert("You need to login");
+            location.replace("/auth.html");
+          }
+        } catch (e) {
+          return e;
+        }
+      },
+
+      async getChat(userId) {
+        const settings = {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json"
+          }
+        };
+        try {
+          const response = await fetch(`/chat?${new URLSearchParams({ user_id: userId })}`, settings);
+          if (response.status <= 201) {
+            response.json().then((data) => {
+              this.messages = data;
+            });
+          }
+        } catch (e) {
+          return e;
+        }
+      },
+
+      async logout() {
+        const settings = {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json"
+          }
+        };
+        try {
+          const response = await fetch(`/auth/logout`, settings);
+          if (response.status <= 201) {
+            location.replace("/auth.html");
+          }
+        } catch (e) {
+          return e;
+        }
+      },
+
+      activate(userId) {
+        this.friendData = this.friends.find((friend) => friend.id === userId);
+        this.active     = userId;
+      }
+    },
+    async created() {
+      await this.checkHealth();
+      this.username = localStorage.getItem("username");
+      await this.getAllFriends();
+      await this.getAllNotFriends();
+      this.socket.chat = io(`/chat`);
+      this.socket.chat.on("chatToClient", (msg) => {
+        this.receiveChatMessage(msg);
+      });
+      if (this.friendData !== undefined) {
+        await this.getChat(this.friendData.id);
+      }
+
+    }
+  });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-A3rJD856KowSb7dwlZdYEkO39Gagi7vIsF0jrRAoQmDKKtQBHUuLZ9AsSv4jD4Xa"
+        crossorigin="anonymous"></script>
+</body>
+</html>

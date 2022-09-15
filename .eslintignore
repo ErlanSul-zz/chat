@@ -1,0 +1,6 @@
+uploads
+dist
+certs
+webpack.config.js
+tsconfig-paths-bootstrap.js
+ecosystem.config.js
